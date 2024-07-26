@@ -64,7 +64,7 @@ def generate_jokes():
 jokes = generate_jokes()
 
 # Configuration
-POST_ENDPOINT = 'http://192.168.0.100:5050/webhook' 
+POST_ENDPOINT = os.environ.get('POST_ENDPOINT', 'http://192.168.0.100:5050/webhook')
 
 def post_joke_periodically():
     while True:
