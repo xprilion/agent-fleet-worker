@@ -4,7 +4,7 @@ import threading
 import time
 import requests
 import os
-
+import traceback
 import requests
 import json
 
@@ -37,7 +37,7 @@ def generate_jokes():
                 {
                     "parts": [
                         {
-                            "text": "Your personality is: " + personality + ". Provide a list of 20 '|' (pipe) separated jokes tightly in line with the personality. Format: joke1|joke2|joke3|joke4| ..."
+                            "text": "Your personality is: " + personality + ". Provide a list of 20 '|' (pipe) separated jokes tightly in line with the personality, only safe for work jokes. Format: joke1|joke2|joke3|joke4| ..."
                         }
                     ]
                 }
@@ -51,6 +51,7 @@ def generate_jokes():
         if response.status_code == 200:
             print("Request successful.")
             data = response.json()
+            print("Data: ", data)
             data = data['candidates'][0]['content']['parts'][0]['text']
             print("Jokes", data.split("|"))
             return data.split("|")
@@ -64,25 +65,38 @@ def generate_jokes():
 jokes = generate_jokes()
 
 # Configuration
-POST_ENDPOINT = os.environ.get('POST_ENDPOINT', 'http://192.168.0.100:5050/webhook')
+POST_ENDPOINT = os.environ.get('POST_ENDPOINT', 'https://agent-fleet-ui.web.app/api/webhook')
+# POST_ENDPOINT = os.environ.get('POST_ENDPOINT', 'http://localhost:3000/api/webhook')
+
 
 def post_joke_periodically():
     while True:
         if len(jokes) > 0:
             joke = random.choice(jokes)
+            current_time = time.time()
             try:
-                response = requests.post(POST_ENDPOINT, json={'joke': joke})
+                response = requests.post(POST_ENDPOINT, json={
+                    "collectionName": "pings-gccd-indore",
+                    "data": {
+                        "name": personality,
+                        "message": joke,
+                        "timestamp": int(current_time * 1000)
+                    }
+                })
                 if response.status_code == 200:
                     print(f"Successfully posted joke: {joke}")
                 else:
-                    print(f"Failed to post joke. Status code: {response.status_code}")
+                    print(f"Failed to post joke. Status code: {response.status_code}. Response content: {response.text}")
+            except requests.exceptions.RequestException as e:
+                print(f"RequestException occurred: {e}")
+                print(traceback.format_exc())
             except Exception as e:
-                print(f"Exception occurred: {e}")
+                print(f"Unexpected exception occurred: {e}")
+                print(traceback.format_exc())
         else:
-            print("No joke found.")
+            print("No jokes found in the list.")
 
         time.sleep(5)
-
 @app.route('/', methods=['GET'])
 def get_joke():
     print("Accessing index")
@@ -96,4 +110,4 @@ def get_joke():
 if __name__ == '__main__':
     # Start the background thread
     threading.Thread(target=post_joke_periodically, daemon=True).start()
-    app.run(host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0', port=os.environ.get("PORT", 5001))
